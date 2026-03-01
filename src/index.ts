@@ -1,0 +1,46 @@
+// @bafe-pkmdd/central-auth-sdk
+// Framework-agnostic JavaScript SDK for Central Auth consumers.
+
+// ─── Types ───────────────────────────────────────────────
+export type {
+  JWTPayload,
+  RefreshFlowConfig,
+  VerifyTokenConfig,
+  TokenRefreshProxyConfig,
+  TokenRefreshResponse,
+  VerifyTokenResult,
+} from './types'
+
+// ─── Constants ───────────────────────────────────────────
+export {
+  DEFAULT_STORAGE_PREFIX,
+  DEFAULT_REFRESH_BUFFER_SECONDS,
+  MIN_REFRESH_INTERVAL_SECONDS,
+  DEFAULT_TTL_FALLBACK_SECONDS,
+  JWKS_ENDPOINT_PATH,
+  TOKEN_REFRESH_ENDPOINT_PATH,
+} from './constants'
+
+// ─── Client SDK ──────────────────────────────────────────
+export {
+  configureStorage,
+  getToken,
+  setToken,
+  getRefreshToken,
+  setRefreshToken,
+  setTokenExpiry,
+  getTokenExpiry,
+  removeTokens,
+  isAuthenticated,
+  decodeToken,
+  getTokenTtl,
+  createRefreshFlow,
+} from './client/index'
+
+// ─── Server SDK ──────────────────────────────────────────
+export {
+  createJWKS,
+  verifyAccessToken,
+  extractBearerToken,
+  proxyTokenRefresh,
+} from './server/index'

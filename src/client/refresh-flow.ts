@@ -1,5 +1,6 @@
 import {
   DEFAULT_REFRESH_BUFFER_SECONDS,
+  LOGOUT_PATH,
   MIN_REFRESH_INTERVAL_SECONDS,
 } from '../constants'
 import type { RefreshFlowConfig, TokenRefreshResponse } from '../types'
@@ -17,7 +18,8 @@ import { getTokenTtl } from './jwt-decode'
  * Create a fully managed token refresh flow.
  *
  * Returns an object with methods to manually refresh, schedule
- * auto-refresh, initialize the flow on page load, and stop the timer.
+ * auto-refresh, initialize the flow on page load, stop the timer,
+ * and perform a full logout (including central-auth session).
  *
  * @example
  * ```ts
@@ -25,6 +27,8 @@ import { getTokenTtl } from './jwt-decode'
  *
  * const auth = createRefreshFlow({
  *   refreshEndpoint: '/auth/refresh',
+ *   centralAuthUrl: 'https://auth.example.com',
+ *   clientId: 'my-app-client-id',
  *   onLogout: () => { window.location.href = '/login' },
  * })
  *
@@ -32,12 +36,14 @@ import { getTokenTtl } from './jwt-decode'
  * auth.init()
  *
  * // On logout:
- * auth.stop()
+ * auth.logout()
  * ```
  */
 export function createRefreshFlow(config: RefreshFlowConfig) {
   const {
     refreshEndpoint,
+    centralAuthUrl,
+    clientId,
     refreshBufferSeconds = DEFAULT_REFRESH_BUFFER_SECONDS,
     onLogout = () => {
       window.location.href = '/'
@@ -143,5 +149,30 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
     }
   }
 
-  return { refresh, schedule, init, stop }
+  /**
+   * Perform a full logout: stop refresh timer, clear local tokens,
+   * and redirect to Central Auth to sign out the session.
+   *
+   * After sign-out, central-auth redirects the user back to `redirectTo`.
+   *
+   * @param redirectTo - URL to redirect after logout (defaults to current origin + '/auth/login')
+   */
+  function logout(redirectTo?: string): void {
+    stop()
+
+    const rt = getRefreshToken()
+    removeTokens()
+
+    // Build the central-auth logout URL
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_to: redirectTo ?? `${window.location.origin}/auth/login`,
+    })
+    if (rt) params.set('refresh_token', rt)
+
+    // Redirect to central-auth to clear the session cookie
+    window.location.href = `${centralAuthUrl}${LOGOUT_PATH}?${params.toString()}`
+  }
+
+  return { refresh, schedule, init, stop, logout }
 }

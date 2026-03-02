@@ -140,6 +140,10 @@ import {
 export const auth = createRefreshFlow({
   // URL of YOUR server's refresh proxy (not Central Auth directly)
   refreshEndpoint: 'http://localhost:4000/auth/refresh',
+  // Central Auth instance URL (used for logout redirect)
+  centralAuthUrl: 'https://auth.example.com',
+  // Your app's client ID from Central Auth
+  clientId: 'myapp_abc123',
   // Optional: how many seconds before expiry to refresh (default: 30)
   refreshBufferSeconds: 30,
   // Called when auto-refresh fails (e.g. refresh token revoked)
@@ -194,9 +198,12 @@ if (isAuthenticated()) {
 
 ```ts
 function handleLogout() {
-  auth.stop()       // Stop the refresh timer
-  removeTokens()    // Clear all stored tokens
-  window.location.href = '/'
+  // Full logout: stops timer, clears tokens, revokes refresh token,
+  // signs out central-auth session, then redirects back.
+  auth.logout()
+
+  // Optionally specify where to redirect after logout:
+  // auth.logout('https://myapp.com/goodbye')
 }
 ```
 
@@ -238,6 +245,8 @@ function handleLogout() {
 ```ts
 {
   refreshEndpoint: string       // URL of your server's refresh proxy
+  centralAuthUrl: string        // Central Auth instance URL (for logout redirect)
+  clientId: string              // OAuth client ID (passed to logout redirect)
   refreshBufferSeconds?: number // Seconds before expiry to refresh (default: 30)
   onLogout?: () => void         // Called when auto-refresh fails
 }
@@ -250,7 +259,8 @@ function handleLogout() {
 | `refresh()` | Manually trigger a token refresh. Returns `Promise<boolean>`. |
 | `schedule(expiresIn)` | Schedule the next refresh `expiresIn` seconds from now. |
 | `init()` | Initialize on page load — refreshes immediately if expired, or schedules if valid. |
-| `stop()` | Stop the auto-refresh timer. Call this on logout. |
+| `stop()` | Stop the auto-refresh timer. |
+| `logout(redirectTo?)` | Full logout: stops timer, clears tokens, and redirects to Central Auth to revoke the session. |
 
 ---
 
@@ -313,6 +323,23 @@ function handleLogout() {
   refresh_token: string
   token_type: string
   expires_in: number
+}
+```
+
+#### Token Revoke Proxy
+
+| Function | Signature | Description |
+|---|---|---|
+| `proxyTokenRevoke` | `(config: TokenRevokeProxyConfig) => Promise<{ success: boolean }>` | Revoke a refresh token on Central Auth (server-to-server) |
+
+**`TokenRevokeProxyConfig`**:
+
+```ts
+{
+  centralAuthUrl: string   // Central Auth instance URL
+  clientId: string         // OAuth client ID
+  clientSecret: string     // OAuth client secret (SERVER-SIDE ONLY)
+  refreshToken: string     // Refresh token to revoke
 }
 ```
 
@@ -474,6 +501,8 @@ const CALLBACK_URL = 'http://localhost:5173/callback'
 
 const auth = createRefreshFlow({
   refreshEndpoint: '/auth/refresh',
+  centralAuthUrl: CENTRAL_AUTH_URL,
+  clientId: CLIENT_ID,
   onLogout: () => { window.location.href = '/' },
 })
 
@@ -514,9 +543,7 @@ function App() {
   }
 
   const handleLogout = () => {
-    auth.stop()
-    removeTokens()
-    setUser(null)
+    auth.logout()
   }
 
   // ... render your app
@@ -536,6 +563,8 @@ import { ref, onMounted } from 'vue'
 
 const auth = createRefreshFlow({
   refreshEndpoint: '/auth/refresh',
+  centralAuthUrl: import.meta.env.VITE_CENTRAL_AUTH_URL,
+  clientId: import.meta.env.VITE_CLIENT_ID,
   onLogout: () => { window.location.href = '/login' },
 })
 
@@ -555,9 +584,7 @@ export function useAuth() {
   }
 
   function logout() {
-    auth.stop()
-    removeTokens()
-    user.value = null
+    auth.logout()
   }
 
   return { user, login, logout, auth }

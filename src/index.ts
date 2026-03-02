@@ -7,6 +7,7 @@ export type {
   RefreshFlowConfig,
   VerifyTokenConfig,
   TokenRefreshProxyConfig,
+  TokenRevokeProxyConfig,
   TokenRefreshResponse,
   VerifyTokenResult,
 } from './types'
@@ -19,6 +20,8 @@ export {
   DEFAULT_TTL_FALLBACK_SECONDS,
   JWKS_ENDPOINT_PATH,
   TOKEN_REFRESH_ENDPOINT_PATH,
+  TOKEN_REVOKE_ENDPOINT_PATH,
+  LOGOUT_PATH,
 } from './constants'
 
 // ─── Client SDK ──────────────────────────────────────────
@@ -43,4 +46,5 @@ export {
   verifyAccessToken,
   extractBearerToken,
   proxyTokenRefresh,
+  proxyTokenRevoke,
 } from './server/index'

@@ -37,6 +37,21 @@ export type RefreshFlowConfig = {
   refreshEndpoint: string
 
   /**
+   * Full URL of the Central Auth instance.
+   * Used for the logout redirect to clear the session cookie.
+   *
+   * @example "https://auth.example.com"
+   */
+  centralAuthUrl: string
+
+  /**
+   * OAuth client ID registered in Central Auth.
+   * Passed to the logout redirect so central-auth can build
+   * a fallback redirect URL.
+   */
+  clientId: string
+
+  /**
    * How many seconds before JWT expiry to trigger a proactive refresh.
    * @default 30
    */
@@ -74,6 +89,18 @@ export type TokenRefreshProxyConfig = {
   /** OAuth client secret (keep this server-side only!) */
   clientSecret: string
   /** The refresh token received from the client */
+  refreshToken: string
+}
+
+/** Configuration for the server-side token revoke proxy. */
+export type TokenRevokeProxyConfig = {
+  /** Full URL of the Central Auth instance */
+  centralAuthUrl: string
+  /** OAuth client ID registered in Central Auth */
+  clientId: string
+  /** OAuth client secret (keep this server-side only!) */
+  clientSecret: string
+  /** The refresh token to revoke */
   refreshToken: string
 }
 

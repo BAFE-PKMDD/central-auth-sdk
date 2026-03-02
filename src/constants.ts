@@ -15,3 +15,9 @@ export const JWKS_ENDPOINT_PATH = '/api/auth/jwks'
 
 /** Central Auth token refresh endpoint path. */
 export const TOKEN_REFRESH_ENDPOINT_PATH = '/api/token/refresh'
+
+/** Central Auth token revoke endpoint path. */
+export const TOKEN_REVOKE_ENDPOINT_PATH = '/api/token/revoke'
+
+/** Central Auth logout redirect path. */
+export const LOGOUT_PATH = '/auth/logout'

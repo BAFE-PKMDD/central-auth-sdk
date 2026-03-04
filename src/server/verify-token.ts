@@ -65,6 +65,7 @@ export async function verifyAccessToken(
       sub: payload.sub as string,
       email: payload.email as string,
       name: payload.name as string,
+      avatarUrl: payload.avatarUrl as string | undefined,
       role: payload.role as string | undefined,
       activeOrganizationId: payload.activeOrganizationId as string | undefined,
       appRole: payload.appRole as JWTPayload['appRole'],

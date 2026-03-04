@@ -16,6 +16,8 @@ export type JWTPayload = {
   appRole?: { name: string; color: string | null } | null
   /** Flat list of permission strings (e.g. "project:read") */
   permissions?: string[]
+  /** URL to the user's avatar image (e.g. Google profile picture) */
+  avatarUrl?: string | null
   /** Token expiry (Unix timestamp, seconds) */
   exp?: number
   /** Token issued-at (Unix timestamp, seconds) */

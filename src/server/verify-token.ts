@@ -70,6 +70,7 @@ export async function verifyAccessToken(
       activeOrganizationId: payload.activeOrganizationId as string | undefined,
       appRole: payload.appRole as JWTPayload['appRole'],
       permissions: (payload.permissions as string[]) ?? [],
+      customFields: (payload.customFields as Record<string, string>) ?? {},
       exp: payload.exp,
       iat: payload.iat,
     }

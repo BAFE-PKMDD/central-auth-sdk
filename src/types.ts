@@ -18,6 +18,8 @@ export type JWTPayload = {
   permissions?: string[]
   /** URL to the user's avatar image (e.g. Google profile picture) */
   avatarUrl?: string | null
+  /** User's verified phone number */
+  phoneNumber?: string | null
   /** User-filled custom field values keyed by the admin-defined field slug */
   customFields?: Record<string, string>
   /** Token expiry (Unix timestamp, seconds) */

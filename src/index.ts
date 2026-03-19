@@ -38,6 +38,7 @@ export {
   decodeToken,
   getTokenTtl,
   createRefreshFlow,
+  hashRefreshToken,
 } from './client/index'
 
 // ─── Server SDK ──────────────────────────────────────────

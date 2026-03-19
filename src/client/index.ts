@@ -14,3 +14,5 @@ export {
 export { decodeToken, getTokenTtl } from './jwt-decode'
 
 export { createRefreshFlow } from './refresh-flow'
+
+export { hashRefreshToken } from './crypto'

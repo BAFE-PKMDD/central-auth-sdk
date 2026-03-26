@@ -52,13 +52,13 @@ export async function verifyAccessToken(
   token: string,
   config: VerifyTokenConfig,
 ): Promise<VerifyTokenResult> {
-  const { centralAuthUrl } = config
+  const { centralAuthUrl, audience } = config
   const jwks = config.jwks ?? createJWKS(centralAuthUrl)
 
   try {
     const { payload } = await jwtVerify(token, jwks, {
       issuer: centralAuthUrl,
-      audience: centralAuthUrl,
+      audience: audience ?? centralAuthUrl,
     })
 
     const user: JWTPayload = {

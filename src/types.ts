@@ -84,6 +84,12 @@ export type VerifyTokenConfig = {
    * If omitted, one is created automatically from `centralAuthUrl`.
    */
   jwks?: ReturnType<typeof import('jose').createRemoteJWKSet>
+
+  /**
+   * Expected audience (aud) claim.
+   * Defaults to centralAuthUrl if omitted.
+   */
+  audience?: string | string[]
 }
 
 /** Configuration for the server-side token refresh proxy. */

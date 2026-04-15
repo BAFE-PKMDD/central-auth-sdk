@@ -1,4 +1,4 @@
-import { jwtVerify } from 'jose'
+import { jwtVerify, decodeJwt } from 'jose'
 import type { JWTPayload, VerifyTokenConfig, VerifyTokenResult } from '../types'
 import { createJWKS } from './jwks'
 
@@ -56,10 +56,11 @@ export async function verifyAccessToken(
   const jwks = config.jwks ?? createJWKS(centralAuthUrl)
 
   try {
-    const { payload } = await jwtVerify(token, jwks, {
+    // In jose v5+, ignoreExpiration was removed from JWTVerifyOptions.
+    // We achieve the same by catching the ERR_JWT_EXPIRED error.
+    const { payload } = await jwtVerify(token, jwks as any, {
       issuer: centralAuthUrl,
       audience: audience ?? centralAuthUrl,
-      ignoreExpiration: config.allowExpired,
     })
 
     const user: JWTPayload = {
@@ -78,16 +79,35 @@ export async function verifyAccessToken(
     }
 
     return { success: true, payload: user }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Invalid token'
-    const isExpired =
-      message.includes('exp') || message.includes('expired')
+  } catch (err: any) {
+    const isExpired = err.code === 'ERR_JWT_EXPIRED'
+    const message = err.message || 'Invalid token'
 
-    // If it's expired and we allowed it, jwtVerify would NOT have thrown.
-    // However, if we didn't allow it but it is expired, we might still want to
-    // return the payload as "stalePayload" if requested via config.
-    // (Actual jwtVerify with ignoreExpiration: true doesn't throw on expiry)
-    
+    // If allowExpired is true and it's ONLY expired (not a signature failure),
+    // we manually decode the payload and return it as a success result.
+    if (isExpired && config.allowExpired) {
+      try {
+        const payload = decodeJwt(token)
+        const user: JWTPayload = {
+          sub: payload.sub as string,
+          email: payload.email as string,
+          name: payload.name as string,
+          avatarUrl: payload.avatarUrl as string | undefined,
+          phoneNumber: (payload.phoneNumber as string | null) ?? null,
+          role: payload.role as string | undefined,
+          activeOrganizationId: payload.activeOrganizationId as string | undefined,
+          appRole: payload.appRole as any,
+          permissions: (payload.permissions as string[]) ?? [],
+          customFields: (payload.customFields as Record<string, string>) ?? {},
+          exp: payload.exp,
+          iat: payload.iat,
+        }
+        return { success: true, payload: user }
+      } catch (decodeErr) {
+        return { success: false, error: 'Failed to decode expired token', isExpired: true }
+      }
+    }
+
     return { success: false, error: message, isExpired }
   }
 }

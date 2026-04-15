@@ -1,3 +1,5 @@
+import type { JWTVerifyGetKey, JWTPayload as JoseJWTPayload } from 'jose'
+
 // ─── JWT Payload ─────────────────────────────────────────
 
 /** Standard claims embedded in Central Auth JWTs. */
@@ -90,7 +92,7 @@ export type VerifyTokenConfig = {
    * Optional pre-created JWKS key set.
    * If omitted, one is created automatically from `centralAuthUrl`.
    */
-  jwks?: ReturnType<typeof import('jose').createRemoteJWKSet>
+  jwks?: JWTVerifyGetKey
 
   /**
    * Expected audience (aud) claim.

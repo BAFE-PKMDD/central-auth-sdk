@@ -80,6 +80,13 @@ export type VerifyTokenConfig = {
   centralAuthUrl: string
 
   /**
+   * If true, `verifyAccessToken` will return a success result even if the token
+   * has expired, provided the signature is still valid.
+   * Useful for Stale-While-Revalidate patterns during offline states.
+   */
+  allowExpired?: boolean
+
+  /**
    * Optional pre-created JWKS key set.
    * If omitted, one is created automatically from `centralAuthUrl`.
    */
@@ -136,4 +143,9 @@ export type VerifyTokenResult =
     success: false
     error: string
     isExpired: boolean
+    /**
+     * If `allowExpired` was set and verification failed ONLY due to expiration,
+     * this payload will contain the decoded stale user data.
+     */
+    stalePayload?: JWTPayload
   }

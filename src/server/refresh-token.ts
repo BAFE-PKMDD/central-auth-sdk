@@ -47,25 +47,36 @@ export async function proxyTokenRefresh(
 ): Promise<TokenRefreshResponse> {
   const { centralAuthUrl, clientId, clientSecret, refreshToken } = config
 
-  const res = await fetch(
-    `${centralAuthUrl}${TOKEN_REFRESH_ENDPOINT_PATH}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-      }),
-    },
-  )
+  let res: Response
+  try {
+    res = await fetch(
+      `${centralAuthUrl}${TOKEN_REFRESH_ENDPOINT_PATH}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      },
+    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown network error'
+    throw new Error(`NETWORK_ERROR: ${msg}`)
+  }
 
-  const data = (await res.json()) as Record<string, unknown>
+  let data: Record<string, unknown>
+  try {
+    data = (await res.json()) as Record<string, unknown>
+  } catch (err) {
+    throw new Error(`PARSE_ERROR: Failed to parse response from Central Auth (Status ${res.status})`)
+  }
 
   if (!res.ok) {
     const errorMessage =
       (data.error as string) ?? `Token refresh failed with status ${res.status}`
-    throw new Error(errorMessage)
+    throw new Error(`API_ERROR: ${errorMessage}`)
   }
 
   return data as unknown as TokenRefreshResponse

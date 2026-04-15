@@ -59,6 +59,7 @@ export async function verifyAccessToken(
     const { payload } = await jwtVerify(token, jwks, {
       issuer: centralAuthUrl,
       audience: audience ?? centralAuthUrl,
+      ignoreExpiration: config.allowExpired,
     })
 
     const user: JWTPayload = {
@@ -82,6 +83,11 @@ export async function verifyAccessToken(
     const isExpired =
       message.includes('exp') || message.includes('expired')
 
+    // If it's expired and we allowed it, jwtVerify would NOT have thrown.
+    // However, if we didn't allow it but it is expired, we might still want to
+    // return the payload as "stalePayload" if requested via config.
+    // (Actual jwtVerify with ignoreExpiration: true doesn't throw on expiry)
+    
     return { success: false, error: message, isExpired }
   }
 }

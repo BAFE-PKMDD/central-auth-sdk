@@ -1,5 +1,19 @@
 import type { JWTVerifyGetKey, JWTPayload as JoseJWTPayload } from 'jose'
 
+// ─── Data Scope Claim ────────────────────────────────────
+
+/** Computed ABAC data scope carried in the JWT payload.
+ *  Resolved by Central Auth based on the user's role policy and custom fields.
+ */
+export type DataScopeClaim = {
+  /** If true, the user has no data restrictions (admin / super-user). */
+  unrestricted: boolean
+  /** If true, the user is missing a required scope attribute → zero rows. */
+  restricted?: boolean
+  /** Resolved scope key→value pairs (e.g. { region: "RFO I", operating_agency: "DA" }). */
+  scope?: Record<string, string>
+}
+
 // ─── JWT Payload ─────────────────────────────────────────
 
 /** Standard claims embedded in Central Auth JWTs. */
@@ -15,7 +29,7 @@ export type JWTPayload = {
   /** Active organization ID from the JWT context */
   activeOrganizationId?: string
   /** Application-specific role assigned via Central Auth RBAC */
-  appRole?: { name: string; color: string | null } | null
+  appRole?: { id: string; name: string; color: string | null } | null
   /** Flat list of permission strings (e.g. "project:read") */
   permissions?: string[]
   /** URL to the user's avatar image (e.g. Google profile picture) */
@@ -24,6 +38,8 @@ export type JWTPayload = {
   phoneNumber?: string | null
   /** User-filled custom field values keyed by the admin-defined field slug */
   customFields?: Record<string, string>
+  /** Computed data scope for ABAC enforcement in downstream services */
+  dataScope?: DataScopeClaim
   /** Token expiry (Unix timestamp, seconds) */
   exp?: number
   /** Token issued-at (Unix timestamp, seconds) */

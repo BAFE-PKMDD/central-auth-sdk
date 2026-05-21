@@ -160,15 +160,15 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
   function logout(redirectTo?: string): void {
     stop()
 
-    const rt = getRefreshToken()
     removeTokens()
 
     // Build the central-auth logout URL
+    // Note: we do NOT pass refresh_token in the URL to avoid exposing it
+    // in browser history, server logs, or referrer headers.
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_to: redirectTo ?? `${window.location.origin}/auth/login`,
     })
-    if (rt) params.set('refresh_token', rt)
 
     // Redirect to central-auth to clear the session cookie
     window.location.href = `${centralAuthUrl}${LOGOUT_PATH}?${params.toString()}`

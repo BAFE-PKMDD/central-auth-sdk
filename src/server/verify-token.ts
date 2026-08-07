@@ -53,14 +53,15 @@ export async function verifyAccessToken(
   config: VerifyTokenConfig,
 ): Promise<VerifyTokenResult> {
   const { centralAuthUrl, audience } = config
-  const jwks = config.jwks ?? createJWKS(centralAuthUrl)
+  const normalizedUrl = centralAuthUrl.replace(/\/+$/, '')
+  const jwks = config.jwks ?? createJWKS(normalizedUrl)
 
   try {
     // In jose v5+, ignoreExpiration was removed from JWTVerifyOptions.
     // We achieve the same by catching the ERR_JWT_EXPIRED error.
     const { payload } = await jwtVerify(token, jwks as any, {
-      issuer: centralAuthUrl,
-      audience: audience ?? centralAuthUrl,
+      issuer: normalizedUrl,
+      audience: audience ?? normalizedUrl,
     })
 
     const user: JWTPayload = {

@@ -46,11 +46,12 @@ export async function proxyTokenRefresh(
   config: TokenRefreshProxyConfig,
 ): Promise<TokenRefreshResponse> {
   const { centralAuthUrl, clientId, clientSecret, refreshToken } = config
+  const normalizedUrl = centralAuthUrl.replace(/\/+$/, '')
 
   let res: Response
   try {
     res = await fetch(
-      `${centralAuthUrl}${TOKEN_REFRESH_ENDPOINT_PATH}`,
+      `${normalizedUrl}${TOKEN_REFRESH_ENDPOINT_PATH}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

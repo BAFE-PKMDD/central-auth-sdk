@@ -18,7 +18,8 @@ import { JWKS_ENDPOINT_PATH } from '../constants'
  * ```
  */
 export function createJWKS(centralAuthUrl: string) {
+  const normalizedUrl = centralAuthUrl.replace(/\/+$/, '')
   return createRemoteJWKSet(
-    new URL(`${centralAuthUrl}${JWKS_ENDPOINT_PATH}`),
+    new URL(`${normalizedUrl}${JWKS_ENDPOINT_PATH}`),
   )
 }

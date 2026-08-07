@@ -46,9 +46,10 @@ export async function proxyTokenRevoke(
   config: TokenRevokeProxyConfig,
 ): Promise<{ success: boolean }> {
   const { centralAuthUrl, clientId, clientSecret, refreshToken } = config
+  const normalizedUrl = centralAuthUrl.replace(/\/+$/, '')
 
   const res = await fetch(
-    `${centralAuthUrl}${TOKEN_REVOKE_ENDPOINT_PATH}`,
+    `${normalizedUrl}${TOKEN_REVOKE_ENDPOINT_PATH}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -40,6 +40,11 @@ export type JWTPayload = {
   customFields?: Record<string, string>
   /** Computed data scope for ABAC enforcement in downstream services */
   dataScope?: DataScopeClaim
+  /** AI assistant feature access and daily credit limit */
+  aiPermissions?: {
+    enabled: boolean
+    dailyLimit: number
+  }
   /** Token expiry (Unix timestamp, seconds) */
   exp?: number
   /** Token issued-at (Unix timestamp, seconds) */

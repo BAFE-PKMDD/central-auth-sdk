@@ -1,4 +1,4 @@
-import type { JWTVerifyGetKey, JWTPayload as JoseJWTPayload } from 'jose'
+import type { JWTVerifyGetKey } from 'jose'
 
 // ─── Data Scope Claim ────────────────────────────────────
 

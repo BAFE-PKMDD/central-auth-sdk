@@ -77,6 +77,7 @@ export async function verifyAccessToken(
       permissions: (payload.permissions as string[]) ?? [],
       customFields: (payload.customFields as Record<string, string>) ?? {},
       dataScope: payload.dataScope as JWTPayload['dataScope'],
+      impersonatedBy: (payload.impersonatedBy as string | undefined) || undefined,
       exp: payload.exp,
       iat: payload.iat,
     }
@@ -104,6 +105,7 @@ export async function verifyAccessToken(
           permissions: (payload.permissions as string[]) ?? [],
           customFields: (payload.customFields as Record<string, string>) ?? {},
           dataScope: payload.dataScope as JWTPayload['dataScope'],
+          impersonatedBy: (payload.impersonatedBy as string | undefined) || undefined,
           exp: payload.exp,
           iat: payload.iat,
         }

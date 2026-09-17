@@ -26,6 +26,8 @@ export type JWTPayload = {
   name: string
   /** Global user role (e.g. "admin", "user") */
   role?: string
+  /** ID of the administrator performing an active impersonation session, if applicable */
+  impersonatedBy?: string
   /** Active organization ID from the JWT context */
   activeOrganizationId?: string
   /** Application-specific role assigned via Central Auth RBAC */

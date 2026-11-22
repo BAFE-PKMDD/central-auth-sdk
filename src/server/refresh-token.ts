@@ -45,7 +45,13 @@ import type { TokenRefreshProxyConfig, TokenRefreshResponse } from '../types'
 export async function proxyTokenRefresh(
   config: TokenRefreshProxyConfig,
 ): Promise<TokenRefreshResponse> {
-  const { centralAuthUrl, clientId, clientSecret, refreshToken } = config
+  const {
+    centralAuthUrl,
+    clientId,
+    clientSecret,
+    refreshToken,
+    timeoutMs = 10_000,
+  } = config
   const normalizedUrl = centralAuthUrl.replace(/\/+$/, '')
 
   let res: Response
@@ -60,6 +66,7 @@ export async function proxyTokenRefresh(
           client_id: clientId,
           client_secret: clientSecret,
         }),
+        signal: AbortSignal.timeout(timeoutMs),
       },
     )
   } catch (err) {

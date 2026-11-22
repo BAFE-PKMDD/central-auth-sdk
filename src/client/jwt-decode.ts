@@ -11,8 +11,19 @@ import { DEFAULT_TTL_FALLBACK_SECONDS } from '../constants'
  */
 export function decodeToken(token: string): Record<string, unknown> | null {
   try {
-    const payload = token.split('.')[1]
-    return JSON.parse(atob(payload))
+    const parts = token.split('.')
+    if (parts.length !== 3 || !parts[1]) return null
+
+    // Convert base64url to standard base64 with proper padding
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
+
+    // Decode UTF-8 safely across browser and Node/Bun runtimes
+    const binary = atob(padded)
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+    const json = new TextDecoder().decode(bytes)
+    const parsed = JSON.parse(json)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
   } catch {
     return null
   }

@@ -45,28 +45,48 @@ import type { TokenRevokeProxyConfig } from '../types'
 export async function proxyTokenRevoke(
   config: TokenRevokeProxyConfig,
 ): Promise<{ success: boolean }> {
-  const { centralAuthUrl, clientId, clientSecret, refreshToken } = config
+  const {
+    centralAuthUrl,
+    clientId,
+    clientSecret,
+    refreshToken,
+    timeoutMs = 10_000,
+  } = config
   const normalizedUrl = centralAuthUrl.replace(/\/+$/, '')
 
-  const res = await fetch(
-    `${normalizedUrl}${TOKEN_REVOKE_ENDPOINT_PATH}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-      }),
-    },
-  )
+  let res: Response
+  try {
+    res = await fetch(
+      `${normalizedUrl}${TOKEN_REVOKE_ENDPOINT_PATH}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      },
+    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown network error'
+    throw new Error(`NETWORK_ERROR: ${msg}`)
+  }
 
-  const data = (await res.json()) as Record<string, unknown>
+  let data: Record<string, unknown>
+  try {
+    data = (await res.json()) as Record<string, unknown>
+  } catch {
+    throw new Error(
+      `PARSE_ERROR: Failed to parse response from Central Auth (Status ${res.status})`,
+    )
+  }
 
   if (!res.ok) {
     const errorMessage =
       (data.error as string) ?? `Token revoke failed with status ${res.status}`
-    throw new Error(errorMessage)
+    throw new Error(`API_ERROR: ${errorMessage}`)
   }
 
   return { success: true }

@@ -51,45 +51,53 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
   } = config
 
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
+  let inFlightRefresh: Promise<boolean> | null = null
+  const normalizedAuthUrl = centralAuthUrl.replace(/\/+$/, '')
 
   /**
    * Call the consumer backend's refresh proxy to get a new access token.
-   * Automatically stores the new tokens and rotated refresh token.
-   *
-   * @returns `true` if refresh succeeded, `false` otherwise
+   * Deduplicates concurrent calls via a single-flight lock.
    */
   async function refresh(): Promise<boolean> {
-    const rt = getRefreshToken()
-    if (!rt) return false
+    if (inFlightRefresh) return inFlightRefresh
 
-    try {
-      const res = await fetch(refreshEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: rt }),
-      })
+    inFlightRefresh = (async () => {
+      const rt = getRefreshToken()
+      if (!rt) return false
 
-      if (!res.ok) {
-        console.error('[CentralAuth] Refresh failed:', res.status)
+      try {
+        const res = await fetch(refreshEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: rt }),
+        })
+
+        if (!res.ok) {
+          console.error('[CentralAuth] Refresh failed:', res.status)
+          return false
+        }
+
+        const data = (await res.json()) as TokenRefreshResponse
+
+        setToken(data.access_token)
+        setTokenExpiry(data.expires_in)
+
+        // Save the rotated refresh token — the old one is now revoked
+        if (data.refresh_token) {
+          setRefreshToken(data.refresh_token)
+        }
+
+        schedule(data.expires_in)
+        return true
+      } catch (err) {
+        console.error('[CentralAuth] Refresh error:', err)
         return false
+      } finally {
+        inFlightRefresh = null
       }
+    })()
 
-      const data = (await res.json()) as TokenRefreshResponse
-
-      setToken(data.access_token)
-      setTokenExpiry(data.expires_in)
-
-      // Save the rotated refresh token — the old one is now revoked
-      if (data.refresh_token) {
-        setRefreshToken(data.refresh_token)
-      }
-
-      schedule(data.expires_in)
-      return true
-    } catch (err) {
-      console.error('[CentralAuth] Refresh error:', err)
-      return false
-    }
+    return inFlightRefresh
   }
 
   /**
@@ -103,10 +111,6 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
     const refreshIn =
       Math.max(MIN_REFRESH_INTERVAL_SECONDS, expiresIn - refreshBufferSeconds) *
       1000
-
-    console.log(
-      `[CentralAuth] Next refresh in ${Math.round(refreshIn / 1000)}s`,
-    )
 
     refreshTimer = setTimeout(async () => {
       const success = await refresh()
@@ -171,7 +175,7 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
     })
 
     // Redirect to central-auth to clear the session cookie
-    window.location.href = `${centralAuthUrl}${LOGOUT_PATH}?${params.toString()}`
+    window.location.href = `${normalizedAuthUrl}${LOGOUT_PATH}?${params.toString()}`
   }
 
   return { refresh, schedule, init, stop, logout }

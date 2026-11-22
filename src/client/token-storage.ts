@@ -18,15 +18,21 @@ function key(name: string): string {
   return `${storagePrefix}_${name}`
 }
 
+function hasStorage(): boolean {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
 // ─── Access Token ────────────────────────────────────────
 
 /** Retrieve the stored access token. */
 export function getToken(): string | null {
+  if (!hasStorage()) return null
   return localStorage.getItem(key('token'))
 }
 
 /** Store the access token in localStorage. */
 export function setToken(token: string): void {
+  if (!hasStorage()) return
   localStorage.setItem(key('token'), token)
 }
 
@@ -34,11 +40,13 @@ export function setToken(token: string): void {
 
 /** Retrieve the stored refresh token. */
 export function getRefreshToken(): string | null {
+  if (!hasStorage()) return null
   return localStorage.getItem(key('refresh_token'))
 }
 
 /** Store the refresh token in localStorage. */
 export function setRefreshToken(token: string): void {
+  if (!hasStorage()) return
   localStorage.setItem(key('refresh_token'), token)
 }
 
@@ -49,12 +57,14 @@ export function setRefreshToken(token: string): void {
  * Internally stores an absolute Unix-ms timestamp.
  */
 export function setTokenExpiry(expiresIn: number): void {
+  if (!hasStorage()) return
   const expiresAt = Date.now() + expiresIn * 1000
   localStorage.setItem(key('token_expiry'), expiresAt.toString())
 }
 
 /** Get the stored token expiry as an absolute Unix-ms timestamp. */
 export function getTokenExpiry(): number {
+  if (!hasStorage()) return 0
   const expiry = localStorage.getItem(key('token_expiry'))
   return expiry ? parseInt(expiry, 10) : 0
 }
@@ -63,6 +73,7 @@ export function getTokenExpiry(): number {
 
 /** Remove all stored auth tokens and expiry data. */
 export function removeTokens(): void {
+  if (!hasStorage()) return
   localStorage.removeItem(key('token'))
   localStorage.removeItem(key('refresh_token'))
   localStorage.removeItem(key('token_expiry'))

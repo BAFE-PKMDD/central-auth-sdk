@@ -1,5 +1,5 @@
 // Server SDK — Node.js / server-side utilities for Central Auth consumers
-export { createJWKS } from './jwks'
+export { createJWKS, getCachedJWKS, clearJWKSCache } from './jwks'
 
 export { verifyAccessToken, extractBearerToken } from './verify-token'
 

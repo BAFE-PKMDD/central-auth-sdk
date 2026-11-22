@@ -119,9 +119,21 @@ export type VerifyTokenConfig = {
 
   /**
    * Expected audience (aud) claim.
+   * Accepts a single client ID or an allowlist of client IDs.
    * Defaults to centralAuthUrl if omitted.
    */
   audience?: string | string[]
+
+  /**
+   * Allowed JWT signing algorithms.
+   * @default ['EdDSA']
+   */
+  algorithms?: string[]
+
+  /**
+   * Allowed clock skew tolerance in seconds when checking exp/nbf.
+   */
+  clockTolerance?: number
 }
 
 /** Configuration for the server-side token refresh proxy. */
@@ -134,6 +146,8 @@ export type TokenRefreshProxyConfig = {
   clientSecret: string
   /** The refresh token received from the client */
   refreshToken: string
+  /** Request timeout in milliseconds (default: 10000) */
+  timeoutMs?: number
 }
 
 /** Configuration for the server-side token revoke proxy. */
@@ -146,6 +160,8 @@ export type TokenRevokeProxyConfig = {
   clientSecret: string
   /** The refresh token to revoke */
   refreshToken: string
+  /** Request timeout in milliseconds (default: 10000) */
+  timeoutMs?: number
 }
 
 // ─── Response Types ──────────────────────────────────────

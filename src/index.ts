@@ -3,6 +3,7 @@
 
 // ─── Types ───────────────────────────────────────────────
 export type {
+  DataScopeClaim,
   JWTPayload,
   RefreshFlowConfig,
   VerifyTokenConfig,
@@ -44,6 +45,8 @@ export {
 // ─── Server SDK ──────────────────────────────────────────
 export {
   createJWKS,
+  getCachedJWKS,
+  clearJWKSCache,
   verifyAccessToken,
   extractBearerToken,
   proxyTokenRefresh,

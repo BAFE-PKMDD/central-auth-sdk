@@ -4,35 +4,107 @@ import { getCachedJWKS } from './jwks'
 
 const DEFAULT_ALGORITHMS = ['EdDSA']
 
-function mapJwtPayload(payload: JoseJWTPayload): JWTPayload {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function mapCustomFields(raw: unknown): Record<string, string> {
+  if (!isPlainObject(raw)) return {}
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'string') {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+function mapAppRole(raw: unknown): JWTPayload['appRole'] {
+  if (!isPlainObject(raw)) return null
+  if (typeof raw.id !== 'string' || typeof raw.name !== 'string') return null
   return {
-    sub: payload.sub as string,
-    email: payload.email as string,
-    name: payload.name as string,
-    avatarUrl: payload.avatarUrl as string | undefined,
-    phoneNumber: (payload.phoneNumber as string | null) ?? null,
-    role: payload.role as string | undefined,
-    activeOrganizationId: payload.activeOrganizationId as string | undefined,
-    aiPermissions: payload.aiPermissions as JWTPayload['aiPermissions'],
-    appRole: payload.appRole as JWTPayload['appRole'],
-    permissions: (payload.permissions as string[]) ?? [],
-    customFields: (payload.customFields as Record<string, string>) ?? {},
-    dataScope: payload.dataScope as JWTPayload['dataScope'],
-    impersonatedBy: (payload.impersonatedBy as string | undefined) || undefined,
-    exp: payload.exp,
-    iat: payload.iat,
+    id: raw.id,
+    name: raw.name,
+    color: typeof raw.color === 'string' ? raw.color : null,
+  }
+}
+
+function mapAiPermissions(raw: unknown): JWTPayload['aiPermissions'] {
+  if (!isPlainObject(raw) || typeof raw.enabled !== 'boolean') return undefined
+  return {
+    enabled: raw.enabled,
+    dailyLimit:
+      typeof raw.dailyLimit === 'number' && Number.isFinite(raw.dailyLimit)
+        ? raw.dailyLimit
+        : 0,
+  }
+}
+
+function mapDataScope(raw: unknown): JWTPayload['dataScope'] {
+  if (!isPlainObject(raw) || typeof raw.unrestricted !== 'boolean') {
+    return undefined
+  }
+  return {
+    unrestricted: raw.unrestricted,
+    ...(typeof raw.restricted === 'boolean'
+      ? { restricted: raw.restricted }
+      : {}),
+    ...(isPlainObject(raw.scope) ? { scope: mapCustomFields(raw.scope) } : {}),
+  }
+}
+
+function mapJwtPayload(payload: JoseJWTPayload): JWTPayload | null {
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
+    return null
+  }
+
+  return {
+    sub: payload.sub,
+    email: typeof payload.email === 'string' ? payload.email : '',
+    name: typeof payload.name === 'string' ? payload.name : '',
+    avatarUrl: typeof payload.avatarUrl === 'string' ? payload.avatarUrl : null,
+    phoneNumber:
+      typeof payload.phoneNumber === 'string' ? payload.phoneNumber : null,
+    role: typeof payload.role === 'string' ? payload.role : undefined,
+    activeOrganizationId:
+      typeof payload.activeOrganizationId === 'string'
+        ? payload.activeOrganizationId
+        : undefined,
+    aiPermissions: mapAiPermissions(payload.aiPermissions),
+    appRole: mapAppRole(payload.appRole),
+    permissions: Array.isArray(payload.permissions)
+      ? payload.permissions.filter((p): p is string => typeof p === 'string')
+      : [],
+    customFields: mapCustomFields(payload.customFields),
+    dataScope: mapDataScope(payload.dataScope),
+    impersonatedBy:
+      typeof payload.impersonatedBy === 'string' &&
+      payload.impersonatedBy.length > 0
+        ? payload.impersonatedBy
+        : undefined,
+    exp:
+      typeof payload.exp === 'number' && Number.isFinite(payload.exp)
+        ? payload.exp
+        : undefined,
+    iat:
+      typeof payload.iat === 'number' && Number.isFinite(payload.iat)
+        ? payload.iat
+        : undefined,
   }
 }
 
 /**
  * Extract the Bearer token from an Authorization header value (case-insensitive).
+ * Rejects malformed tokens containing internal whitespace.
  */
-export function extractBearerToken(authHeader?: string | null): string | null {
-  if (!authHeader) return null
-  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim())
+export function extractBearerToken(
+  authHeader?: string | string[] | null,
+): string | null {
+  const rawHeader = Array.isArray(authHeader) ? authHeader[0] : authHeader
+  if (typeof rawHeader !== 'string' || rawHeader.length === 0) return null
+  const match = /^Bearer\s+(\S+)$/i.exec(rawHeader.trim())
   if (!match) return null
-  const token = match[1].trim()
-  return token.length > 0 ? token : null
+  return match[1] || null
 }
 
 /**
@@ -54,7 +126,16 @@ export async function verifyAccessToken(
       ...(clockTolerance !== undefined ? { clockTolerance } : {}),
     })
 
-    return { success: true, payload: mapJwtPayload(payload) }
+    const mapped = mapJwtPayload(payload)
+    if (!mapped) {
+      return {
+        success: false,
+        error: 'Missing subject claim (sub)',
+        isExpired: false,
+      }
+    }
+
+    return { success: true, payload: mapped }
   } catch (err: unknown) {
     const joseErr = err as { code?: string; message?: string }
     const isExpired = joseErr?.code === 'ERR_JWT_EXPIRED'
@@ -66,7 +147,15 @@ export async function verifyAccessToken(
     if (isExpired && config.allowExpired) {
       try {
         const payload = decodeJwt(token)
-        return { success: true, payload: mapJwtPayload(payload) }
+        const mapped = mapJwtPayload(payload)
+        if (!mapped) {
+          return {
+            success: false,
+            error: 'Missing subject claim (sub)',
+            isExpired: true,
+          }
+        }
+        return { success: true, payload: mapped, isExpired: true }
       } catch {
         return {
           success: false,

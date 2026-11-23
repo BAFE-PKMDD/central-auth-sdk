@@ -22,8 +22,10 @@ export function decodeToken(token: string): Record<string, unknown> | null {
     const binary = atob(padded)
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
     const json = new TextDecoder().decode(bytes)
-    const parsed = JSON.parse(json)
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+    const parsed: unknown = JSON.parse(json)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
   } catch {
     return null
   }
@@ -33,11 +35,12 @@ export function decodeToken(token: string): Record<string, unknown> | null {
  * Get the remaining time-to-live (in seconds) for a JWT.
  *
  * @param token - Raw JWT string
- * @returns Seconds until expiry, or `DEFAULT_TTL_FALLBACK_SECONDS` if no `exp` claim
+ * @returns Seconds until expiry, or `DEFAULT_TTL_FALLBACK_SECONDS` if no valid `exp` claim
  */
 export function getTokenTtl(token: string): number {
   const decoded = decodeToken(token)
-  if (!decoded?.exp) return DEFAULT_TTL_FALLBACK_SECONDS
-  const exp = decoded.exp as number
-  return Math.max(0, exp - Math.floor(Date.now() / 1000))
+  if (!decoded || typeof decoded.exp !== 'number' || !Number.isFinite(decoded.exp)) {
+    return DEFAULT_TTL_FALLBACK_SECONDS
+  }
+  return Math.max(0, decoded.exp - Math.floor(Date.now() / 1000))
 }

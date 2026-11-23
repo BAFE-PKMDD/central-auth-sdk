@@ -1,7 +1,7 @@
 {
   "name": "@bafe-pkmdd/central-auth-sdk",
-  "version": "0.8.0",
-  "description": "Framework-agnostic JavaScript SDK for Central Auth — token management, JWT verification, and refresh flow utilities.",
+  "version": "0.9.0",
+  "description": "Framework-agnostic JavaScript SDK for Central Auth — token management, JWT verification, refresh flow, and Next.js utilities.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -36,6 +36,16 @@
         "types": "./dist/server/index.d.cts",
         "default": "./dist/server/index.cjs"
       }
+    },
+    "./next": {
+      "import": {
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
+      },
+      "require": {
+        "types": "./dist/next/index.d.cts",
+        "default": "./dist/next/index.cjs"
+      }
     }
   },
   "files": [
@@ -44,9 +54,10 @@
   ],
   "scripts": {
     "build": "tsup",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "jose": "^6.0.11"

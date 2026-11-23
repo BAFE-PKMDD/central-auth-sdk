@@ -1,5 +1,6 @@
 import {
   DEFAULT_REFRESH_BUFFER_SECONDS,
+  DEFAULT_TTL_FALLBACK_SECONDS,
   LOGOUT_PATH,
   MIN_REFRESH_INTERVAL_SECONDS,
 } from '../constants'
@@ -14,30 +15,24 @@ import {
 } from './token-storage'
 import { getTokenTtl } from './jwt-decode'
 
+type RefreshOutcome = 'ok' | 'permanent_failure' | 'transient_failure'
+
+const MAX_TRANSIENT_RETRIES = 5
+const BASE_RETRY_SECONDS = 5
+const MAX_RETRY_SECONDS = 60
+
+function defaultLogoutRedirect(): void {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/'
+  }
+}
+
 /**
  * Create a fully managed token refresh flow.
  *
  * Returns an object with methods to manually refresh, schedule
  * auto-refresh, initialize the flow on page load, stop the timer,
  * and perform a full logout (including central-auth session).
- *
- * @example
- * ```ts
- * import { createRefreshFlow } from '@bafe-pkmdd/central-auth-sdk/client'
- *
- * const auth = createRefreshFlow({
- *   refreshEndpoint: '/auth/refresh',
- *   centralAuthUrl: 'https://auth.example.com',
- *   clientId: 'my-app-client-id',
- *   onLogout: () => { window.location.href = '/login' },
- * })
- *
- * // On page load:
- * auth.init()
- *
- * // On logout:
- * auth.logout()
- * ```
  */
 export function createRefreshFlow(config: RefreshFlowConfig) {
   const {
@@ -45,25 +40,22 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
     centralAuthUrl,
     clientId,
     refreshBufferSeconds = DEFAULT_REFRESH_BUFFER_SECONDS,
-    onLogout = () => {
-      window.location.href = '/'
-    },
+    onLogout = defaultLogoutRedirect,
   } = config
 
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
-  let inFlightRefresh: Promise<boolean> | null = null
+  let inFlightRefresh: Promise<RefreshOutcome> | null = null
+  let stopped = false
+  let transientFailures = 0
   const normalizedAuthUrl = centralAuthUrl.replace(/\/+$/, '')
 
-  /**
-   * Call the consumer backend's refresh proxy to get a new access token.
-   * Deduplicates concurrent calls via a single-flight lock.
-   */
-  async function refresh(): Promise<boolean> {
+  async function executeRefresh(): Promise<RefreshOutcome> {
+    if (stopped) return 'transient_failure'
     if (inFlightRefresh) return inFlightRefresh
 
-    inFlightRefresh = (async () => {
+    inFlightRefresh = (async (): Promise<RefreshOutcome> => {
       const rt = getRefreshToken()
-      if (!rt) return false
+      if (!rt) return 'permanent_failure'
 
       try {
         const res = await fetch(refreshEndpoint, {
@@ -72,26 +64,42 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
           body: JSON.stringify({ refresh_token: rt }),
         })
 
+        if (stopped) return 'transient_failure'
+
         if (!res.ok) {
           console.error('[CentralAuth] Refresh failed:', res.status)
-          return false
+          if (res.status === 400 || res.status === 401 || res.status === 403) {
+            return 'permanent_failure'
+          }
+          return 'transient_failure'
         }
 
-        const data = (await res.json()) as TokenRefreshResponse
+        const data = (await res.json()) as Partial<TokenRefreshResponse>
+        if (stopped) return 'ok'
+        if (!data.access_token || typeof data.access_token !== 'string') {
+          return 'transient_failure'
+        }
+
+        transientFailures = 0
+        const expiresIn =
+          typeof data.expires_in === 'number' && Number.isFinite(data.expires_in)
+            ? data.expires_in
+            : DEFAULT_TTL_FALLBACK_SECONDS
 
         setToken(data.access_token)
-        setTokenExpiry(data.expires_in)
+        setTokenExpiry(expiresIn)
 
-        // Save the rotated refresh token — the old one is now revoked
-        if (data.refresh_token) {
+        if (data.refresh_token && typeof data.refresh_token === 'string') {
           setRefreshToken(data.refresh_token)
         }
 
-        schedule(data.expires_in)
-        return true
+        if (!stopped) {
+          schedule(expiresIn)
+        }
+        return 'ok'
       } catch (err) {
         console.error('[CentralAuth] Refresh error:', err)
-        return false
+        return 'transient_failure'
       } finally {
         inFlightRefresh = null
       }
@@ -100,46 +108,85 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
     return inFlightRefresh
   }
 
+  function scheduleTransientRetry(): void {
+    if (stopped) return
+    transientFailures += 1
+    if (transientFailures > MAX_TRANSIENT_RETRIES) {
+      console.warn('[CentralAuth] Max transient refresh retries reached')
+      return
+    }
+    const backoffSeconds = Math.min(
+      MAX_RETRY_SECONDS,
+      BASE_RETRY_SECONDS * 2 ** (transientFailures - 1),
+    )
+    if (refreshTimer) clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(() => {
+      void runScheduledRefresh()
+    }, backoffSeconds * 1000)
+  }
+
+  async function runScheduledRefresh(): Promise<void> {
+    if (stopped) return
+    const outcome = await executeRefresh()
+    if (stopped) return
+
+    if (outcome === 'permanent_failure') {
+      console.warn('[CentralAuth] Auto-refresh unauthorized — logging out')
+      transientFailures = 0
+      removeTokens()
+      onLogout()
+    } else if (outcome === 'transient_failure') {
+      scheduleTransientRetry()
+    }
+  }
+
+  /**
+   * Call the consumer backend's refresh proxy to get a new access token.
+   * Deduplicates concurrent calls via a single-flight lock.
+   */
+  async function refresh(): Promise<boolean> {
+    const outcome = await executeRefresh()
+    return outcome === 'ok'
+  }
+
   /**
    * Schedule the next proactive token refresh.
    *
    * @param expiresIn - Seconds until the current token expires
    */
   function schedule(expiresIn: number): void {
+    stopped = false
     if (refreshTimer) clearTimeout(refreshTimer)
 
+    const safeExpiresIn = Number.isFinite(expiresIn) ? expiresIn : DEFAULT_TTL_FALLBACK_SECONDS
     const refreshIn =
-      Math.max(MIN_REFRESH_INTERVAL_SECONDS, expiresIn - refreshBufferSeconds) *
+      Math.max(MIN_REFRESH_INTERVAL_SECONDS, safeExpiresIn - refreshBufferSeconds) *
       1000
 
-    refreshTimer = setTimeout(async () => {
-      const success = await refresh()
-      if (!success) {
-        console.warn('[CentralAuth] Auto-refresh failed — logging out')
-        removeTokens()
-        onLogout()
-      }
+    refreshTimer = setTimeout(() => {
+      void runScheduledRefresh()
     }, refreshIn)
   }
 
   /**
    * Initialize the refresh flow on app startup.
-   * If the token is expired, attempts an immediate refresh.
+   * If the token is missing or expired and a refresh token is present, attempts an immediate refresh.
    * If valid, schedules the next refresh based on remaining TTL.
    */
   function init(): void {
+    stopped = false
+    transientFailures = 0
     const token = getToken()
-    if (!token) return
+    if (!token) {
+      if (getRefreshToken()) {
+        void runScheduledRefresh()
+      }
+      return
+    }
 
     const ttl = getTokenTtl(token)
     if (ttl <= 0) {
-      // Token already expired, try immediate refresh
-      refresh().then((success) => {
-        if (!success) {
-          removeTokens()
-          onLogout()
-        }
-      })
+      void runScheduledRefresh()
     } else {
       schedule(ttl)
     }
@@ -147,6 +194,8 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
 
   /** Stop the auto-refresh timer. Call this on logout. */
   function stop(): void {
+    stopped = true
+    transientFailures = 0
     if (refreshTimer) {
       clearTimeout(refreshTimer)
       refreshTimer = null
@@ -157,24 +206,21 @@ export function createRefreshFlow(config: RefreshFlowConfig) {
    * Perform a full logout: stop refresh timer, clear local tokens,
    * and redirect to Central Auth to sign out the session.
    *
-   * After sign-out, central-auth redirects the user back to `redirectTo`.
-   *
    * @param redirectTo - URL to redirect after logout (defaults to current origin + '/auth/login')
    */
   function logout(redirectTo?: string): void {
     stop()
-
     removeTokens()
 
-    // Build the central-auth logout URL
-    // Note: we do NOT pass refresh_token in the URL to avoid exposing it
-    // in browser history, server logs, or referrer headers.
+    if (typeof window === 'undefined') {
+      return
+    }
+
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_to: redirectTo ?? `${window.location.origin}/auth/login`,
     })
 
-    // Redirect to central-auth to clear the session cookie
     window.location.href = `${normalizedAuthUrl}${LOGOUT_PATH}?${params.toString()}`
   }
 

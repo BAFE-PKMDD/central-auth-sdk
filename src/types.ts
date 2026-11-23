@@ -136,6 +136,43 @@ export type VerifyTokenConfig = {
   clockTolerance?: number
 }
 
+/** Error codes emitted by server-side proxy helpers. */
+export type CentralAuthErrorCode = 'NETWORK_ERROR' | 'PARSE_ERROR' | 'API_ERROR'
+
+/**
+ * Structured error thrown by Central Auth server proxy calls.
+ * Preserves the `${code}: ${detail}` message prefix for compatibility while exposing `code` and HTTP `status`.
+ */
+export class CentralAuthError extends Error {
+  readonly code: CentralAuthErrorCode
+  readonly status?: number
+
+  constructor(code: CentralAuthErrorCode, detail: string, status?: number) {
+    super(`${code}: ${detail}`)
+    this.name = 'CentralAuthError'
+    this.code = code
+    this.status = status
+  }
+}
+
+/** Configuration for the server-side authorization code exchange proxy. */
+export type TokenExchangeProxyConfig = {
+  /** Full URL of the Central Auth instance */
+  centralAuthUrl: string
+  /** OAuth client ID registered in Central Auth */
+  clientId: string
+  /** OAuth client secret (keep this server-side only!) */
+  clientSecret: string
+  /** One-time authorization code received at the callback */
+  code: string
+  /** Optional PKCE code_verifier paired with the initial authorization challenge */
+  codeVerifier?: string
+  /** Optional Origin header to forward to Central Auth */
+  origin?: string
+  /** Request timeout in milliseconds (default: 10000) */
+  timeoutMs?: number
+}
+
 /** Configuration for the server-side token refresh proxy. */
 export type TokenRefreshProxyConfig = {
   /** Full URL of the Central Auth instance */
@@ -146,6 +183,8 @@ export type TokenRefreshProxyConfig = {
   clientSecret: string
   /** The refresh token received from the client */
   refreshToken: string
+  /** Optional Origin header to forward to Central Auth */
+  origin?: string
   /** Request timeout in milliseconds (default: 10000) */
   timeoutMs?: number
 }
@@ -160,11 +199,21 @@ export type TokenRevokeProxyConfig = {
   clientSecret: string
   /** The refresh token to revoke */
   refreshToken: string
+  /** Optional Origin header to forward to Central Auth */
+  origin?: string
   /** Request timeout in milliseconds (default: 10000) */
   timeoutMs?: number
 }
 
 // ─── Response Types ──────────────────────────────────────
+
+/** Successful token exchange response from Central Auth. */
+export type TokenExchangeResponse = {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
+}
 
 /** Successful token refresh response from Central Auth. */
 export type TokenRefreshResponse = {
@@ -179,14 +228,15 @@ export type VerifyTokenResult =
   | {
     success: true
     payload: JWTPayload
+    /** True when verification succeeded via `allowExpired: true` for an expired signature-valid JWT. */
+    isExpired?: boolean
   }
   | {
     success: false
     error: string
     isExpired: boolean
     /**
-     * If `allowExpired` was set and verification failed ONLY due to expiration,
-     * this payload will contain the decoded stale user data.
+     * @deprecated Stale payloads now return `{ success: true, payload, isExpired: true }` when `allowExpired: true`.
      */
     stalePayload?: JWTPayload
   }

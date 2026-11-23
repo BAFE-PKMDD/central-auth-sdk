@@ -1,4 +1,5 @@
 import { DEFAULT_STORAGE_PREFIX } from '../constants'
+import { decodeToken } from './jwt-decode'
 
 // ─── Storage Key Management ─────────────────────────────
 
@@ -57,7 +58,7 @@ export function setRefreshToken(token: string): void {
  * Internally stores an absolute Unix-ms timestamp.
  */
 export function setTokenExpiry(expiresIn: number): void {
-  if (!hasStorage()) return
+  if (!hasStorage() || !Number.isFinite(expiresIn)) return
   const expiresAt = Date.now() + expiresIn * 1000
   localStorage.setItem(key('token_expiry'), expiresAt.toString())
 }
@@ -66,7 +67,9 @@ export function setTokenExpiry(expiresIn: number): void {
 export function getTokenExpiry(): number {
   if (!hasStorage()) return 0
   const expiry = localStorage.getItem(key('token_expiry'))
-  return expiry ? parseInt(expiry, 10) : 0
+  if (!expiry) return 0
+  const parsed = parseInt(expiry, 10)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 // ─── Cleanup ─────────────────────────────────────────────
@@ -81,7 +84,20 @@ export function removeTokens(): void {
 
 // ─── Quick Check ─────────────────────────────────────────
 
-/** Returns `true` if an access token is currently stored. */
+/** Returns `true` if a non-expired access token is currently stored. */
 export function isAuthenticated(): boolean {
-  return !!getToken()
+  const token = getToken()
+  if (!token) return false
+
+  const decoded = decodeToken(token)
+  if (decoded && typeof decoded.exp === 'number' && Number.isFinite(decoded.exp)) {
+    return decoded.exp * 1000 > Date.now()
+  }
+
+  const storedExpiry = getTokenExpiry()
+  if (storedExpiry > 0) {
+    return storedExpiry > Date.now()
+  }
+
+  return true
 }
